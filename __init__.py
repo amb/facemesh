@@ -13,23 +13,130 @@
 
 bl_info = {
     "name": "Facemesh",
+    "category": "Paint",
     "author": "ambi",
-    "description": "",
+    "description": "Face-off",
     "blender": (2, 80, 0),
     "version": (0, 0, 1),
-    "location": "",
-    "warning": "",
-    "category": "Generic",
+    "location": "Image Editor > Side Panel > Image",
+    "warning": "EXPERIMENTAL",
 }
 
-from . import auto_load
+import bpy
+import sys
+import bmesh
+import math
+import mathutils
 
-auto_load.init()
+# requires:
+# opencv-python
+# mediapipe
+# protobuf==3.19.0
+# matplotlib
+
+
+# from .blender_pip import Pip
+# Pip.install("")
+
+# import sys
+# from os.path import dirname
+
+# file_dirname = dirname(__file__)
+# if file_dirname not in sys.path:
+#     sys.path.append(file_dirname)
+
+
+import mediapipe as mp
+
+# from . import mediapipe as mp
+# from .mediapipe.python import *
+# from .mediapipe.python import solutions as solutions
+import numpy as np
+from . import utils
+
+
+class AMB_OT_FaceOff(bpy.types.Operator):
+    bl_idname = "faceoff.execute"
+    bl_label = "Copy face from image into 3D"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        image = utils.get_area_image(context)
+        if image is None:
+            self.report({"WARNING"}, "Unable to load image")
+            return {"CANCELLED"}
+        ndimage = np.swapaxes(np.uint8(utils.image_to_ndarray(image) * 255.0), 0, 1)[..., :3]
+
+        # Run MediaPipe Face Mesh.
+        with mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=True,
+            max_num_faces=1,
+            min_detection_confidence=0.5,
+            refine_landmarks=True,
+        ) as face_mesh:
+            results = face_mesh.process(ndimage)
+            if results.multi_face_landmarks is None:
+                self.report({"WARNING"}, "Unable to find facial landmarks")
+                return {"CANCELLED"}
+
+        # Draw annotations of landmarks
+        # ret_image = np.empty((*annotated_image.shape[:2], 4), dtype=np.float32)
+        # ret_image[..., :3] = np.float32(np.swapaxes(annotated_image, 0, 1)[..., :3]) / 255.0
+        # ret_image[..., 3] = 1.0
+        # utils.ndarray_to_image(image, ret_image)
+        # bpy.ops.image.invert(invert_r=False, invert_g=False, invert_b=False)
+
+        # Create mesh
+        bm = bmesh.new()
+        rs = [b for b in results.multi_face_landmarks][0].landmark
+        for k in range(468):
+            c_point = (rs[k].y - 0.5, rs[k].z - 0.5, rs[k].x - 0.5)
+            bm.verts.new(c_point)
+
+        bm.verts.ensure_lookup_table()
+        bm.verts.index_update()
+        fm_t = utils.TESSELLATION
+        for i in range(0, len(fm_t), 3):
+            ids = (fm_t[i][0], fm_t[i][1], fm_t[i + 2][0])
+            nf = bm.faces.new((bm.verts[j] for j in ids))
+            nf.smooth = True
+
+        # Baked UV
+        uv_layer = bm.loops.layers.uv.new()
+        for face in bm.faces:
+            for loop in face.loops:
+                v = bm.verts[loop.vert.index]
+                loop[uv_layer].uv = (v.co.x + 0.5, v.co.z + 0.5)
+
+        me = bpy.data.meshes.new("Faceoff mesh")
+        bm.to_mesh(me)
+        bm.free()
+        obj = bpy.data.objects.new("Faceoff object", me)
+        bpy.context.collection.objects.link(obj)
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        return {"FINISHED"}
+
+    # def draw(self, context):
+    #     col = self.layout.column()
+    #     box = col.box()
+    #     row = box.row()
+    #     row.label(text="Test label")
+
+    # bl_category = "Image"
+    # bl_regiontype = "UI"
+    # bl_spacetype = "IMAGE_EDITOR"
+
+
+classes = [AMB_OT_FaceOff]
 
 
 def register():
-    auto_load.register()
+    for c in classes:
+        bpy.utils.register_class(c)
 
 
 def unregister():
-    auto_load.unregister()
+    for c in classes[::-1]:
+        bpy.utils.unregister_class(c)
