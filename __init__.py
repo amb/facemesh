@@ -61,6 +61,14 @@ class AMB_OT_FaceOff(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
+        # cc = 0
+        # for p in bpy.context.selected_objects[0].data.polygons:
+        #     cc += 1
+        #     print([i for i in p.vertices], end=", ")
+        #     if cc == 4:
+        #         cc = 0
+        #         print()
+
         image = utils.get_area_image(context)
         if image is None:
             self.report({"WARNING"}, "Unable to load image")
@@ -95,10 +103,14 @@ class AMB_OT_FaceOff(bpy.types.Operator):
 
         bm.verts.ensure_lookup_table()
         bm.verts.index_update()
-        fm_t = utils.TESSELLATION
-        for i in range(0, len(fm_t), 3):
-            ids = (fm_t[i][0], fm_t[i][1], fm_t[i + 2][0])
-            nf = bm.faces.new((bm.verts[j] for j in ids))
+        # fm_t = utils.TESSELLATION
+        # for i in range(0, len(fm_t), 3):
+        #     ids = (fm_t[i][0], fm_t[i][1], fm_t[i + 2][0])
+        #     nf = bm.faces.new((bm.verts[j] for j in ids))
+        #     nf.smooth = True
+        fm_t = utils.QUAD_TESSELLATION
+        for i in range(0, len(fm_t)):
+            nf = bm.faces.new((bm.verts[j] for j in fm_t[i]))
             nf.smooth = True
 
         # Baked UV
