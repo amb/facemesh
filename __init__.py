@@ -23,7 +23,6 @@ bl_info = {
 }
 
 import bpy
-import sys
 import bmesh
 import math
 import mathutils
@@ -103,11 +102,7 @@ class AMB_OT_FaceOff(bpy.types.Operator):
 
         bm.verts.ensure_lookup_table()
         bm.verts.index_update()
-        # fm_t = utils.TESSELLATION
-        # for i in range(0, len(fm_t), 3):
-        #     ids = (fm_t[i][0], fm_t[i][1], fm_t[i + 2][0])
-        #     nf = bm.faces.new((bm.verts[j] for j in ids))
-        #     nf.smooth = True
+
         fm_t = utils.QUAD_TESSELLATION
         for i in range(0, len(fm_t)):
             nf = bm.faces.new((bm.verts[j] for j in fm_t[i]))
